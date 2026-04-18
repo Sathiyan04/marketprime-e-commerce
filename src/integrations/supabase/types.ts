@@ -62,6 +62,83 @@ export type Database = {
         }
         Relationships: []
       }
+      coupon_redemptions: {
+        Row: {
+          coupon_id: string
+          created_at: string
+          discount_applied: number
+          id: string
+          order_id: string | null
+          user_id: string
+        }
+        Insert: {
+          coupon_id: string
+          created_at?: string
+          discount_applied: number
+          id?: string
+          order_id?: string | null
+          user_id: string
+        }
+        Update: {
+          coupon_id?: string
+          created_at?: string
+          discount_applied?: number
+          id?: string
+          order_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_redemptions_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coupons: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          description: string | null
+          expires_at: string | null
+          id: string
+          max_discount: number | null
+          min_order: number
+          type: Database["public"]["Enums"]["coupon_type"]
+          usage_limit: number | null
+          value: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          description?: string | null
+          expires_at?: string | null
+          id?: string
+          max_discount?: number | null
+          min_order?: number
+          type: Database["public"]["Enums"]["coupon_type"]
+          usage_limit?: number | null
+          value: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          description?: string | null
+          expires_at?: string | null
+          id?: string
+          max_discount?: number | null
+          min_order?: number
+          type?: Database["public"]["Enums"]["coupon_type"]
+          usage_limit?: number | null
+          value?: number
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           created_at: string
@@ -112,7 +189,9 @@ export type Database = {
       }
       orders: {
         Row: {
+          coupon_code: string | null
           created_at: string
+          discount: number
           id: string
           payment_method: string
           shipping: number
@@ -124,7 +203,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          coupon_code?: string | null
           created_at?: string
+          discount?: number
           id?: string
           payment_method: string
           shipping?: number
@@ -136,7 +217,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          coupon_code?: string | null
           created_at?: string
+          discount?: number
           id?: string
           payment_method?: string
           shipping?: number
@@ -274,6 +357,27 @@ export type Database = {
           },
         ]
       }
+      wishlists: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -282,6 +386,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      coupon_type: "percent" | "flat"
       order_status:
         | "ordered"
         | "packed"
@@ -416,6 +521,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      coupon_type: ["percent", "flat"],
       order_status: [
         "ordered",
         "packed",
