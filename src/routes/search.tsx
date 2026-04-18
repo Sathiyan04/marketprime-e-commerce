@@ -78,11 +78,11 @@ function SearchPage() {
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const updateSearch = (next: Partial<typeof search>) => {
-    navigate({ to: "/search", search: (prev) => ({ ...prev, ...next, page: 1 }) });
+    navigate({ to: "/search", search: { ...search, ...next, page: 1 } });
   };
 
   const goToPage = (p: number) => {
-    navigate({ to: "/search", search: (prev) => ({ ...prev, page: p }) });
+    navigate({ to: "/search", search: { ...search, page: p } });
   };
 
   return (
