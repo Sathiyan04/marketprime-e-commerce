@@ -235,6 +235,72 @@ export type Database = {
         }
         Relationships: []
       }
+      otp_codes: {
+        Row: {
+          attempts: number
+          channel: string
+          code_hash: string
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          identifier: string
+          purpose: string
+        }
+        Insert: {
+          attempts?: number
+          channel: string
+          code_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          identifier: string
+          purpose: string
+        }
+        Update: {
+          attempts?: number
+          channel?: string
+          code_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          identifier?: string
+          purpose?: string
+        }
+        Relationships: []
+      }
+      otp_rate_limits: {
+        Row: {
+          channel: string
+          failed_attempts: number
+          id: string
+          identifier: string
+          last_sent_at: string | null
+          locked_until: string | null
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          failed_attempts?: number
+          id?: string
+          identifier: string
+          last_sent_at?: string | null
+          locked_until?: string | null
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          failed_attempts?: number
+          id?: string
+          identifier?: string
+          last_sent_at?: string | null
+          locked_until?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           brand: string
@@ -299,22 +365,31 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          email_verified: boolean
           full_name: string | null
           id: string
+          phone: string | null
+          phone_verified: boolean
           updated_at: string
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          email_verified?: boolean
           full_name?: string | null
           id: string
+          phone?: string | null
+          phone_verified?: boolean
           updated_at?: string
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
+          email_verified?: boolean
           full_name?: string | null
           id?: string
+          phone?: string | null
+          phone_verified?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -400,6 +475,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      trusted_devices: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          last_used_at: string
+          token_hash: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          last_used_at?: string
+          token_hash: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_used_at?: string
+          token_hash?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       wishlists: {
         Row: {
