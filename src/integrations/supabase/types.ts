@@ -189,6 +189,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          cancellation_reason: string | null
           coupon_code: string | null
           created_at: string
           discount: number
@@ -203,6 +204,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cancellation_reason?: string | null
           coupon_code?: string | null
           created_at?: string
           discount?: number
@@ -217,6 +219,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cancellation_reason?: string | null
           coupon_code?: string | null
           created_at?: string
           discount?: number
@@ -316,6 +319,47 @@ export type Database = {
         }
         Relationships: []
       }
+      refunds: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          order_id: string
+          reason: string | null
+          status: Database["public"]["Enums"]["refund_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          order_id: string
+          reason?: string | null
+          status?: Database["public"]["Enums"]["refund_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          order_id?: string
+          reason?: string | null
+          status?: Database["public"]["Enums"]["refund_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refunds_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reviews: {
         Row: {
           body: string | null
@@ -394,6 +438,7 @@ export type Database = {
         | "out_for_delivery"
         | "delivered"
         | "cancelled"
+      refund_status: "pending" | "processed" | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -530,6 +575,7 @@ export const Constants = {
         "delivered",
         "cancelled",
       ],
+      refund_status: ["pending", "processed", "failed"],
     },
   },
 } as const
