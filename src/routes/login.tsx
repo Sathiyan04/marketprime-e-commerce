@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
-import { useAuth } from "@/contexts/AuthContext";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { isDeviceTrusted } from "@/server/otp.functions";
 import { useCart } from "@/stores/cart";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -21,18 +22,11 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
   const { redirect, addProduct } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (!loading && user) {
-      handlePostAuth();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, loading]);
+  const checkTrustFn = useServerFn(isDeviceTrusted);
 
   const handlePostAuth = async () => {
     if (addProduct) {
@@ -58,13 +52,36 @@ function LoginPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setSubmitting(false);
-    if (error) {
-      toast.error(error.message);
+
+    // Step 1: validate password
+    const { data: signIn, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !signIn.user) {
+      setSubmitting(false);
+      toast.error(error?.message ?? "Invalid credentials");
       return;
     }
-    toast.success("Welcome back!");
+
+    // Step 2: check trusted device → skip OTP
+    try {
+      const { trusted } = await checkTrustFn({ data: { userId: signIn.user.id } });
+      if (trusted) {
+        setSubmitting(false);
+        toast.success("Welcome back!");
+        await handlePostAuth();
+        return;
+      }
+    } catch {
+      // fall through to 2FA
+    }
+
+    // Step 3: not trusted → sign out, stash creds, route to OTP
+    await supabase.auth.signOut();
+    sessionStorage.setItem("pendingLogin", JSON.stringify({ email, password }));
+    setSubmitting(false);
+    navigate({
+      to: "/verify-otp",
+      search: { purpose: "login", email, phone: "", redirect: addProduct ? `/?addProduct=${addProduct}` : redirect },
+    });
   };
 
   return (

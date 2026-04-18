@@ -1,12 +1,12 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
-import { useAuth } from "@/contexts/AuthContext";
+import { isValidPhoneNumber } from "react-phone-number-input";
 import { supabase } from "@/integrations/supabase/client";
-import { useCart } from "@/stores/cart";
 import { Button } from "@/components/ui/button";
 import { Field } from "./login";
+import { PhoneField } from "@/components/auth/PhoneField";
 import { toast } from "sonner";
 
 const signupSearchSchema = z.object({
@@ -22,43 +22,21 @@ export const Route = createFileRoute("/signup")({
 
 function SignupPage() {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
   const { redirect, addProduct } = Route.useSearch();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (!loading && user) handlePostAuth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, loading]);
-
-  const handlePostAuth = async () => {
-    if (addProduct) {
-      const { data: p } = await supabase
-        .from("products")
-        .select("id, slug, title, price, image_url")
-        .eq("id", addProduct)
-        .maybeSingle();
-      if (p) {
-        useCart.getState().add({
-          productId: p.id,
-          slug: p.slug,
-          title: p.title,
-          price: Number(p.price),
-          imageUrl: p.image_url,
-        });
-        toast.success(`${p.title} added to your cart`);
-      }
-    }
-    navigate({ to: redirect || "/" });
-  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 6) {
       toast.error("Password must be at least 6 characters.");
+      return;
+    }
+    if (!phone || !isValidPhoneNumber(phone)) {
+      toast.error("Please enter a valid phone number with country code.");
       return;
     }
     setSubmitting(true);
@@ -67,7 +45,7 @@ function SignupPage() {
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/`,
-        data: { full_name: name },
+        data: { full_name: name, phone },
       },
     });
     setSubmitting(false);
@@ -75,7 +53,11 @@ function SignupPage() {
       toast.error(error.message);
       return;
     }
-    toast.success("Account created!");
+    toast.success("Account created. Verify your email & phone to continue.");
+    navigate({
+      to: "/verify-otp",
+      search: { purpose: "signup", email, phone, redirect: addProduct ? `/login?addProduct=${addProduct}&redirect=${redirect}` : redirect },
+    });
   };
 
   return (
@@ -87,6 +69,7 @@ function SignupPage() {
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <Field label="Full name" type="text" value={name} onChange={setName} required />
           <Field label="Email" type="email" value={email} onChange={setEmail} required />
+          <PhoneField value={phone} onChange={setPhone} required />
           <Field label="Password (6+ characters)" type="password" value={password} onChange={setPassword} required />
           <Button type="submit" className="h-11 w-full bg-primary text-primary-foreground hover:opacity-90" disabled={submitting}>
             {submitting ? "Creating…" : "Create account"}
