@@ -57,7 +57,11 @@ function OrdersPage() {
         </div>
       ) : (
         <ul className="mt-6 space-y-5">
-          {orders.map((o: any) => <OrderCard key={o.id} o={o} />)}
+          {orders.map((o: any) => (
+            <Link key={o.id} to="/orders/$id" params={{ id: o.id }} className="block transition hover:opacity-90">
+              <OrderCard o={o} />
+            </Link>
+          ))}
         </ul>
       )}
     </div>
