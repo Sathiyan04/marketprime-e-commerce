@@ -1,6 +1,9 @@
-import { Link } from "@tanstack/react-router";
-import { Star } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Star, ShoppingCart } from "lucide-react";
 import { formatINR, discountPct } from "@/lib/format";
+import { useCart } from "@/stores/cart";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export interface ProductCardData {
   id: string;
@@ -16,6 +19,21 @@ export interface ProductCardData {
 
 export function ProductCard({ p }: { p: ProductCardData }) {
   const off = discountPct(p.price, p.original_price);
+  const add = useCart((s) => s.add);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const onQuickAdd = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      navigate({ to: "/login", search: { redirect: "/cart", addProduct: p.id } });
+      return;
+    }
+    add({ productId: p.id, slug: p.slug, title: p.title, price: p.price, imageUrl: p.image_url });
+    toast.success(`${p.title} added to cart`);
+  };
+
   return (
     <Link
       to="/products/$slug"
@@ -34,6 +52,13 @@ export function ProductCard({ p }: { p: ProductCardData }) {
             {off}% OFF
           </span>
         )}
+        <button
+          onClick={onQuickAdd}
+          aria-label={`Add ${p.title} to cart`}
+          className="absolute bottom-3 right-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground opacity-0 shadow-elevated transition-base group-hover:opacity-100 hover:scale-110 focus:opacity-100"
+        >
+          <ShoppingCart className="h-4 w-4" />
+        </button>
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-4">
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -56,5 +81,19 @@ export function ProductCard({ p }: { p: ProductCardData }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+export function ProductCardSkeleton() {
+  return (
+    <div className="flex flex-col overflow-hidden rounded-xl border bg-card">
+      <div className="aspect-square animate-pulse bg-muted" />
+      <div className="flex flex-col gap-2 p-4">
+        <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
+        <div className="h-4 w-full animate-pulse rounded bg-muted" />
+        <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+        <div className="mt-2 h-5 w-1/2 animate-pulse rounded bg-muted" />
+      </div>
+    </div>
   );
 }
