@@ -200,7 +200,7 @@ const markVerifiedSchema = z.object({
 export const markProfileVerified = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => markVerifiedSchema.parse(d))
   .handler(async ({ data }) => {
-    const update: Record<string, boolean> = {};
+    const update: { email_verified?: boolean; phone_verified?: boolean } = {};
     if (data.email) update.email_verified = true;
     if (data.phone) update.phone_verified = true;
     if (Object.keys(update).length === 0) return { ok: true as const };
