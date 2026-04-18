@@ -6,11 +6,44 @@ import { Star, Truck, ShieldCheck, RotateCcw, Plus, Minus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/stores/cart";
 import { useChatContext } from "@/stores/chat-context";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatINR, discountPct } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/products/$slug")({
+  loader: async ({ params }) => {
+    const { data } = await supabase
+      .from("products")
+      .select("id, slug, title, description, brand, image_url, price, original_price")
+      .eq("slug", params.slug)
+      .maybeSingle();
+    return { product: data };
+  },
+  head: ({ loaderData }) => {
+    const p = loaderData?.product;
+    if (!p) return { meta: [{ title: "Product not found — MarketPrime" }] };
+    const title = `${p.title} — MarketPrime`;
+    const desc = p.description?.slice(0, 155) ?? `Buy ${p.title} at MarketPrime.`;
+    return {
+      meta: [
+        { title },
+        { name: "description", content: desc },
+        { property: "og:title", content: p.title },
+        { property: "og:description", content: desc },
+        { property: "og:image", content: p.image_url },
+        { property: "og:type", content: "product" },
+        { property: "product:price:amount", content: String(p.price) },
+        { property: "product:price:currency", content: "INR" },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:image", content: p.image_url },
+        { name: "twitter:title", content: p.title },
+        { name: "twitter:description", content: desc },
+      ],
+    };
+  },
   component: ProductPage,
 });
 
@@ -30,15 +63,43 @@ async function fetchReviews(productId: string) {
   return data ?? [];
 }
 
+async function fetchPurchaseAndReview(productId: string, userId: string) {
+  const [purchase, review] = await Promise.all([
+    supabase
+      .from("order_items")
+      .select("order_id, orders!inner(user_id, status)")
+      .eq("product_id", productId)
+      .eq("orders.user_id", userId)
+      .neq("orders.status", "cancelled")
+      .limit(1),
+    supabase
+      .from("reviews")
+      .select("id")
+      .eq("product_id", productId)
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+  return {
+    hasPurchased: (purchase.data?.length ?? 0) > 0,
+    hasReviewed: !!review.data,
+  };
+}
+
 function ProductPage() {
   const { slug } = Route.useParams();
   const navigate = useNavigate();
   const add = useCart((s) => s.add);
   const setPage = useChatContext((s) => s.setPage);
+  const { user } = useAuth();
 
   const { data: p, isLoading } = useQuery({ queryKey: ["product", slug], queryFn: () => fetchProduct(slug) });
-  const { data: reviews = [] } = useQuery({
+  const { data: reviews = [], refetch: refetchReviews } = useQuery({
     queryKey: ["reviews", p?.id], queryFn: () => fetchReviews(p!.id), enabled: !!p?.id,
+  });
+  const { data: purchaseInfo, refetch: refetchPurchase } = useQuery({
+    queryKey: ["purchase-info", p?.id, user?.id],
+    queryFn: () => fetchPurchaseAndReview(p!.id, user!.id),
+    enabled: !!p?.id && !!user?.id,
   });
 
   const [active, setActive] = useState(0);
@@ -54,7 +115,21 @@ function ProductPage() {
     }
   }, [p, setPage]);
 
-  if (isLoading) return <div className="mx-auto max-w-7xl px-6 py-12 text-center text-muted-foreground">Loading…</div>;
+  if (isLoading) {
+    return (
+      <div className="mx-auto grid max-w-7xl gap-10 px-6 py-8 lg:grid-cols-2">
+        <Skeleton className="aspect-square w-full rounded-2xl" />
+        <div className="space-y-4">
+          <Skeleton className="h-4 w-1/3" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-6 w-1/4" />
+          <Skeleton className="h-12 w-1/2" />
+          <Skeleton className="h-24 w-full" />
+          <div className="flex gap-3"><Skeleton className="h-12 flex-1 rounded-full" /><Skeleton className="h-12 flex-1 rounded-full" /></div>
+        </div>
+      </div>
+    );
+  }
   if (!p) return <div className="mx-auto max-w-7xl px-6 py-12 text-center">Product not found.</div>;
 
   const gallery = z.array(z.string()).safeParse(p.gallery).success
@@ -64,10 +139,21 @@ function ProductPage() {
   const inStock = p.stock > 0;
 
   const onAdd = () => {
+    if (!user) {
+      navigate({ to: "/login", search: { redirect: `/products/${p.slug}`, addProduct: p.id } });
+      return;
+    }
     add({ productId: p.id, slug: p.slug, title: p.title, price: Number(p.price), imageUrl: p.image_url }, qty);
     toast.success(`${p.title} added to cart`);
   };
-  const onBuy = () => { onAdd(); navigate({ to: "/checkout" }); };
+  const onBuy = () => {
+    if (!user) {
+      navigate({ to: "/login", search: { redirect: "/checkout", addProduct: p.id } });
+      return;
+    }
+    add({ productId: p.id, slug: p.slug, title: p.title, price: Number(p.price), imageUrl: p.image_url }, qty);
+    navigate({ to: "/checkout" });
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
@@ -141,7 +227,6 @@ function ProductPage() {
 
           <p className="mt-6 text-sm leading-relaxed text-muted-foreground">{p.description}</p>
 
-          {/* Quantity + actions */}
           <div className="mt-7 flex items-center gap-3">
             <div className="inline-flex items-center rounded-full border">
               <button onClick={() => setQty(Math.max(1, qty - 1))} className="flex h-10 w-10 items-center justify-center text-muted-foreground transition-base hover:text-foreground">
@@ -158,7 +243,6 @@ function ProductPage() {
             <Button onClick={onBuy} disabled={!inStock} className="h-12 flex-1 rounded-full bg-accent text-accent-foreground shadow-glow hover:opacity-90">Buy now</Button>
           </div>
 
-          {/* Trust */}
           <div className="mt-6 grid grid-cols-3 gap-3 rounded-xl border bg-surface-elevated p-4 text-xs">
             <Trust icon={Truck} label="Free delivery" />
             <Trust icon={RotateCcw} label="7-day returns" />
@@ -168,25 +252,35 @@ function ProductPage() {
       </div>
 
       {/* Reviews */}
-      <section className="mt-16">
-        <h2 className="font-display text-xl font-bold">Customer reviews</h2>
-        {reviews.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">No reviews yet — be the first to share your experience.</p>
-        ) : (
-          <ul className="mt-5 space-y-4">
-            {reviews.map((r: any) => (
-              <li key={r.id} className="rounded-xl border bg-card p-4">
-                <div className="flex items-center gap-2">
-                  <div className="flex">{Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className={`h-3.5 w-3.5 ${i < r.rating ? "fill-accent text-accent" : "text-muted"}`} />
-                  ))}</div>
-                  {r.title && <p className="text-sm font-semibold">{r.title}</p>}
-                </div>
-                {r.body && <p className="mt-2 text-sm text-muted-foreground">{r.body}</p>}
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="mt-16 grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div>
+          <h2 className="font-display text-xl font-bold">Customer reviews</h2>
+          {reviews.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">No reviews yet — be the first to share your experience.</p>
+          ) : (
+            <ul className="mt-5 space-y-4">
+              {reviews.map((r: any) => (
+                <li key={r.id} className="rounded-xl border bg-card p-4">
+                  <div className="flex items-center gap-2">
+                    <div className="flex">{Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} className={`h-3.5 w-3.5 ${i < r.rating ? "fill-accent text-accent" : "text-muted"}`} />
+                    ))}</div>
+                    {r.title && <p className="text-sm font-semibold">{r.title}</p>}
+                  </div>
+                  {r.body && <p className="mt-2 text-sm text-muted-foreground">{r.body}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="lg:sticky lg:top-24 lg:self-start">
+          <ReviewForm
+            productId={p.id}
+            hasPurchased={purchaseInfo?.hasPurchased ?? false}
+            hasReviewed={purchaseInfo?.hasReviewed ?? false}
+            onSubmitted={() => { refetchReviews(); refetchPurchase(); }}
+          />
+        </div>
       </section>
     </div>
   );

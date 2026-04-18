@@ -30,7 +30,7 @@ function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) navigate({ to: "/login" });
+    if (!loading && !user) navigate({ to: "/login", search: { redirect: "/checkout", addProduct: "" } });
     if (items.length === 0 && !submitting) navigate({ to: "/cart" });
   }, [user, loading, items.length, navigate, submitting]);
 

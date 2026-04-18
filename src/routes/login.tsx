@@ -1,11 +1,20 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { z } from "zod";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useCart } from "@/stores/cart";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
+const loginSearchSchema = z.object({
+  redirect: fallback(z.string(), "/").default("/"),
+  addProduct: fallback(z.string(), "").default(""),
+});
+
 export const Route = createFileRoute("/login")({
+  validateSearch: zodValidator(loginSearchSchema),
   head: () => ({ meta: [{ title: "Sign in — MarketPrime" }] }),
   component: LoginPage,
 });
@@ -13,13 +22,38 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { redirect, addProduct } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) navigate({ to: "/" });
-  }, [user, loading, navigate]);
+    if (!loading && user) {
+      handlePostAuth();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, loading]);
+
+  const handlePostAuth = async () => {
+    if (addProduct) {
+      const { data: p } = await supabase
+        .from("products")
+        .select("id, slug, title, price, image_url")
+        .eq("id", addProduct)
+        .maybeSingle();
+      if (p) {
+        useCart.getState().add({
+          productId: p.id,
+          slug: p.slug,
+          title: p.title,
+          price: Number(p.price),
+          imageUrl: p.image_url,
+        });
+        toast.success(`${p.title} added to your cart`);
+      }
+    }
+    navigate({ to: redirect || "/" });
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +65,6 @@ function LoginPage() {
       return;
     }
     toast.success("Welcome back!");
-    navigate({ to: "/" });
   };
 
   return (
@@ -43,6 +76,11 @@ function LoginPage() {
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <Field label="Email" type="email" value={email} onChange={setEmail} required />
           <Field label="Password" type="password" value={password} onChange={setPassword} required />
+          <div className="flex justify-end">
+            <Link to="/forgot-password" className="text-xs font-medium text-accent hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <Button type="submit" className="h-11 w-full bg-primary text-primary-foreground hover:opacity-90" disabled={submitting}>
             {submitting ? "Signing in…" : "Sign in"}
           </Button>
@@ -50,7 +88,13 @@ function LoginPage() {
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           New here?{" "}
-          <Link to="/signup" className="font-medium text-accent hover:underline">Create an account</Link>
+          <Link
+            to="/signup"
+            search={{ redirect, addProduct }}
+            className="font-medium text-accent hover:underline"
+          >
+            Create an account
+          </Link>
         </p>
       </div>
     </div>

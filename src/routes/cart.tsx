@@ -1,8 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Trash2, Plus, Minus, ShoppingBag, ArrowRight } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Lock } from "lucide-react";
 import { useCart } from "@/stores/cart";
 import { useChatContext } from "@/stores/chat-context";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatINR } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 
@@ -17,6 +18,8 @@ function CartPage() {
   const remove = useCart((s) => s.remove);
   const subtotal = useCart((s) => s.items.reduce((a, i) => a + i.price * i.quantity, 0));
   const setPage = useChatContext((s) => s.setPage);
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
 
   const itemCount = items.reduce((a, i) => a + i.quantity, 0);
   const shipping = subtotal > 999 || subtotal === 0 ? 0 : 49;
@@ -25,6 +28,46 @@ function CartPage() {
   useEffect(() => {
     setPage({ kind: "cart", itemCount, subtotal });
   }, [itemCount, subtotal, setPage]);
+
+  // Auth gate — redirect guests to login, then back to cart
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-md px-6 py-20 text-center">
+        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-accent" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="mx-auto max-w-md px-6 py-20 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+          <Lock className="h-7 w-7 text-muted-foreground" />
+        </div>
+        <h1 className="mt-5 font-display text-2xl font-bold">Sign in to view your cart</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {items.length > 0
+            ? `You have ${itemCount} item${itemCount === 1 ? "" : "s"} saved. Sign in to continue checkout.`
+            : "Your cart is waiting — sign in to start shopping."}
+        </p>
+        <div className="mt-6 flex flex-col gap-2">
+          <button
+            onClick={() => navigate({ to: "/login", search: { redirect: "/cart", addProduct: "" } })}
+            className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-base hover:opacity-90"
+          >
+            Sign in
+          </button>
+          <Link
+            to="/signup"
+            search={{ redirect: "/cart", addProduct: "" }}
+            className="text-xs font-medium text-accent hover:underline"
+          >
+            New here? Create an account
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
