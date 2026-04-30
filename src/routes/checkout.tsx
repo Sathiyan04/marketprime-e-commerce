@@ -30,11 +30,12 @@ function CheckoutPage() {
   const [payment, setPayment] = useState<PaymentMethod | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [checkoutOrderId, setCheckoutOrderId] = useState<string | null>(null);
+  const [paying, setPaying] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login", search: { redirect: "/checkout", addProduct: "" } });
-    if (items.length === 0 && !submitting) navigate({ to: "/cart" });
-  }, [user, loading, items.length, navigate, submitting]);
+    if (items.length === 0 && !submitting && !paying) navigate({ to: "/cart" });
+  }, [user, loading, items.length, navigate, submitting, paying]);
 
   const shipping = subtotal > 999 ? 0 : 49;
   const total = subtotal + shipping;
@@ -59,6 +60,7 @@ function CheckoutPage() {
 
     // Open mock UPI checkout for the just-created order
     setCheckoutOrderId(order.id);
+    setPaying(true);
     setSubmitting(false);
   };
 
@@ -68,15 +70,16 @@ function CheckoutPage() {
       .from("orders")
       .update({ payment_status: "paid", payment_id: mockPaymentId, paid_at: new Date().toISOString() })
       .eq("id", orderId);
-    clear();
     setCheckoutOrderId(null);
-    navigate({ to: "/payment-success", search: { orderId, paymentId: mockPaymentId } });
+    await navigate({ to: "/payment-success", search: { orderId, paymentId: mockPaymentId } });
+    clear();
   };
 
   const handlePaymentFailure = async (orderId: string, reason: string) => {
     await supabase.from("orders").update({ payment_status: "failed" }).eq("id", orderId);
     setCheckoutOrderId(null);
-    navigate({ to: "/payment-failed", search: { orderId, reason } });
+    setPaying(false);
+    await navigate({ to: "/payment-failed", search: { orderId, reason } });
   };
 
   return (
