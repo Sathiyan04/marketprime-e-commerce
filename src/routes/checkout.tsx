@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "./login";
 import { formatINR } from "@/lib/format";
 import { toast } from "sonner";
+import { MockUpiCheckout } from "@/components/payments/MockUpiCheckout";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({ meta: [{ title: "Checkout — MarketPrime" }] }),
@@ -28,6 +29,7 @@ function CheckoutPage() {
   const [addr, setAddr] = useState({ full_name: "", phone: "", line1: "", line2: "", city: "", state: "", postal_code: "", country: "India" });
   const [payment, setPayment] = useState<PaymentMethod | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [checkoutOrderId, setCheckoutOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login", search: { redirect: "/checkout", addProduct: "" } });
@@ -43,6 +45,7 @@ function CheckoutPage() {
     const { data: order, error } = await supabase.from("orders").insert({
       user_id: user.id, status: "ordered", subtotal, shipping, total,
       payment_method: payment, shipping_address: addr,
+      payment_status: "pending",
     }).select().single();
     if (error || !order) { setSubmitting(false); toast.error(error?.message || "Failed"); return; }
 
@@ -54,9 +57,26 @@ function CheckoutPage() {
     );
     if (e2) { setSubmitting(false); toast.error(e2.message); return; }
 
+    // Open mock UPI checkout for the just-created order
+    setCheckoutOrderId(order.id);
+    setSubmitting(false);
+  };
+
+  const handlePaymentSuccess = async (orderId: string) => {
+    const mockPaymentId = `pay_mock_${Math.random().toString(36).slice(2, 12)}`;
+    await supabase
+      .from("orders")
+      .update({ payment_status: "paid", payment_id: mockPaymentId, paid_at: new Date().toISOString() })
+      .eq("id", orderId);
     clear();
-    toast.success("Order placed!");
-    navigate({ to: "/orders" });
+    setCheckoutOrderId(null);
+    navigate({ to: "/payment-success", search: { orderId, paymentId: mockPaymentId } });
+  };
+
+  const handlePaymentFailure = async (orderId: string, reason: string) => {
+    await supabase.from("orders").update({ payment_status: "failed" }).eq("id", orderId);
+    setCheckoutOrderId(null);
+    navigate({ to: "/payment-failed", search: { orderId, reason } });
   };
 
   return (
@@ -124,7 +144,7 @@ function CheckoutPage() {
               <div className="mt-6 flex gap-3">
                 <Button variant="outline" onClick={() => setStep("payment")} className="h-11 flex-1 rounded-full">Back</Button>
                 <Button onClick={placeOrder} disabled={submitting} className="h-11 flex-1 rounded-full bg-accent text-accent-foreground shadow-glow hover:opacity-90">
-                  {submitting ? "Placing…" : `Place order • ${formatINR(total)}`}
+                  {submitting ? "Placing…" : `Pay now • ${formatINR(total)}`}
                 </Button>
               </div>
             </>
@@ -142,6 +162,15 @@ function CheckoutPage() {
           <Link to="/cart" className="mt-3 block text-center text-xs text-accent hover:underline">Edit cart</Link>
         </aside>
       </div>
+      {checkoutOrderId && (
+        <MockUpiCheckout
+          orderId={checkoutOrderId}
+          amount={total}
+          method={payment ?? "gpay"}
+          onSuccess={() => handlePaymentSuccess(checkoutOrderId)}
+          onFailure={(reason) => handlePaymentFailure(checkoutOrderId, reason)}
+        />
+      )}
     </div>
   );
 }
